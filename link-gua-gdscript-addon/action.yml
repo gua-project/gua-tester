@@ -29,6 +29,8 @@ runs:
   steps:
     - name: Download and copy addon into Godot project
       shell: pwsh
+      env:
+        GITHUB_TOKEN: ${{ github.token }}
       run: |
         $ErrorActionPreference = "Stop"
         $repository = "${{ inputs.gua-repository }}"
@@ -39,6 +41,8 @@ runs:
           $assetPatterns += "gua-godot-plugin-windows-debug-*.zip"
         }
         $headers = @{ "User-Agent" = "gua-godot-actions" }
+        $downloadHeaders = @{ "User-Agent" = "gua-godot-actions" }
+        if (![string]::IsNullOrWhiteSpace($env:GITHUB_TOKEN)) { $headers.Authorization = "Bearer $($env:GITHUB_TOKEN)" }
 
         function Find-AddonAsset($release) {
           foreach ($pattern in $assetPatterns) {
@@ -87,7 +91,7 @@ runs:
         $archivePath = Join-Path $downloadDir $asset.name
         $extractDir = Join-Path $downloadDir "extract"
         New-Item -ItemType Directory -Force $downloadDir | Out-Null
-        Invoke-WebRequest -Uri $asset.browser_download_url -OutFile $archivePath -Headers $headers
+        Invoke-WebRequest -Uri $asset.browser_download_url -OutFile $archivePath -Headers $downloadHeaders
         Expand-Archive -Path $archivePath -DestinationPath $extractDir -Force
 
         $sourceAddon = Join-Path $extractDir "addons/gua"
