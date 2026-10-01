@@ -1,11 +1,11 @@
 name: Link Gua GDScript Addon
-description: Download link1345/gua's released Godot addon and copy it into a Godot project.
+description: Download gua-project/gua's released Godot addon and copy it into a Godot project.
 
 inputs:
   gua-repository:
     description: Repository containing Gua Godot plugin releases.
     required: false
-    default: link1345/gua
+    default: gua-project/gua
   gua-plugin-tag:
     description: Gua release tag. Leave empty to use the latest stable gua-v* release containing a matching addon asset.
     required: false

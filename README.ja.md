@@ -1,5 +1,8 @@
 # Gua Tester Actions
 
+> [!IMPORTANT]
+> **2026-10-01から、すべての利用者はgua-testerをv3.2へ更新してください。** Guaの`gua-project/gua`への移管（このActions repoも`gua-project/gua-tester`へ移管）への対応が必要です。すべてのActionとreusable workflowの参照を、以下の例のように`gua-project/gua-tester/...@v3.2`へ変更してください。**v3.2は公開予定で、まだリリースされていません。** 以下の例はメンテナーによる公開後に利用してください。更新対象は**gua-tester**であり、Guaライブラリのバージョンではありません。
+
 [English](README.md) | 日本語
 
 Godot 4.7／Unity 6プロジェクトでGua UIテストをCI実行するための
@@ -14,7 +17,7 @@ composite Action、Unityのreusable workflow、engine共通のVisual report機�
 Godot Actionは次を実行します。
 
 - runnerに合うGodot公式版（Windows x64、Linux x64、macOS）をダウンロード
-- 対象の Godot addon asset を含む `link1345/gua` の最新安定版 `gua-v*` リリースを取得
+- 対象の Godot addon asset を含む `gua-project/gua` の最新安定版 `gua-v*` リリースを取得
 - 対応desktop GDExtensionを含む`addons/gua` packageを展開
 - 展開した addon を利用者の `game/addons/gua` へ配置
 - `GODOT_EXECUTABLE` を設定して `dotnet test` を実行
@@ -44,7 +47,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Run Godot Gua tests
-        uses: link1345/gua-tester/godot@v3.1
+        uses: gua-project/gua-tester/godot@v3.2
         with:
           project-path: game
           test-project: tests/GuaTester.Tests.csproj
@@ -54,7 +57,7 @@ jobs:
           # gua-plugin-tag: gua-v1.0.7
 ```
 
-本番workflowは`@v3.1`へ固定してください。v2ではroot Actionを削除しています。
+本番workflowは`@v3.2`へ固定してください。v2ではroot Actionを削除しています。
 移行方法は[v2への移行](#v2への移行)を参照してください。
 
 ## Godot Action inputs
@@ -67,7 +70,7 @@ jobs:
 - `godot-status`: `stable`、`rc1`、`dev1` など
 - `godot-executable-suffix`: Windows向け後方互換override。Linux／macOSは公式archive名を自動選択
 - `dotnet-version`: 既定値 `10.0.x`
-- `gua-repository`: 既定値 `link1345/gua`
+- `gua-repository`: 既定値 `gua-project/gua`
 - `gua-plugin-tag`: `gua-v1.0.7` などの特定の Gua リリースタグ。省略時は
   対象 addon asset を含む最新安定版の `gua-v*` リリースを使います。旧形式の
   `godot-plugin-*` リリースにもフォールバックします。
@@ -82,7 +85,7 @@ jobs:
 ### setup-godot
 
 ```yaml
-- uses: link1345/gua-tester/setup-godot@v3.1
+- uses: gua-project/gua-tester/setup-godot@v3.2
   with:
     godot-version: "4.7"
     godot-status: stable
@@ -93,14 +96,14 @@ jobs:
 ### link-gua-gdscript-addon
 
 ```yaml
-- uses: link1345/gua-tester/link-gua-gdscript-addon@v3.1
+- uses: gua-project/gua-tester/link-gua-gdscript-addon@v3.2
   with:
     project-path: game
     # 省略時は最新安定版の gua-v* リリースを使います。
     # gua-plugin-tag: gua-v1.0.7
 ```
 
-`link1345/gua` の Godot plugin リリース asset をダウンロードし、その中の
+`gua-project/gua` の Godot plugin リリース asset をダウンロードし、その中の
 `addons/gua` を `game/addons/gua` にコピーします。
 
 ## Unity 6 desktop Mono
@@ -120,7 +123,7 @@ on:
 jobs:
   unity:
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
-    uses: link1345/gua-tester/.github/workflows/unity.yml@v3.1
+    uses: gua-project/gua-tester/.github/workflows/unity.yml@v3.2
     with:
       project-path: game
       scene-path: Assets/Scenes/Title.unity
@@ -144,7 +147,7 @@ Gua v1.0.4以降には、Linux／macOS platformで必要なcross-platform native
 
 必須inputは`project-path`、`scene-path`、`test-project`と、呼び出しごとに一意な
 `artifact-key`です。任意inputは
-`platform`（`WindowsX64`）、`unity-version`（`auto`）、`gua-repository`（`link1345/gua`）、`gua-tag`、
+`platform`（`WindowsX64`）、`unity-version`（`auto`）、`gua-repository`（`gua-project/gua`）、`gua-tag`、
 `dotnet-version`（`10.0.x`）、`configuration`（`Release`）、`test-logger`
 （`trx;LogFileName=unity.trx`）、`artifact-path`（`artifacts/gua`）です。
 `checkout-repository`と`checkout-ref`は別repoのfixtureを使う高度なoverrideです。
@@ -172,7 +175,7 @@ Astro製静的Viewerと合わせて、Pages artifactまたは通常のworkflow a
 ```yaml
 - name: Run Godot Gua tests
   id: gua-tests
-  uses: link1345/gua-tester/godot@v3.1
+  uses: gua-project/gua-tester/godot@v3.2
   with:
     project-path: game
     test-project: tests/GuaTester.Tests.csproj
@@ -180,7 +183,7 @@ Astro製静的Viewerと合わせて、Pages artifactまたは通常のworkflow a
 - name: Prepare latest main visual report
   id: visual-report
   if: always() && github.event_name != 'pull_request'
-  uses: link1345/gua-tester/visual-report@v3.1
+  uses: gua-project/gua-tester/visual-report@v3.2
   with:
     artifact-path: artifacts/gua
     test-outcome: ${{ steps.gua-tests.outcome }}
@@ -219,10 +222,10 @@ mainが成功した場合は一致した現在画面を公開し、`include-comp
 ## Godot addonのリンク方式
 
 Git submodule はリポジトリ単位なので、
-`https://github.com/link1345/gua/tree/main/examples/godot-gdscript/addons/gua`
+`https://github.com/gua-project/gua/tree/main/examples/godot-gdscript/addons/gua`
 のようなサブディレクトリだけを直接 submodule にはできません。
 
-そのため、この actions repo では `link1345/gua` の `gua-v*` リリースから対象の
+そのため、この actions repo では `gua-project/gua` の `gua-v*` リリースから対象の
 Godot addon asset をダウンロードし、リリース内の `addons/gua` だけを利用者の
 Godot project へコピーします。旧形式の `godot-plugin-*` リリースにもフォールバック
 します。リリース asset にはビルド済み Windows GDExtension DLL が含まれるので、

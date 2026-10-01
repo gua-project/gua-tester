@@ -25,7 +25,7 @@ inputs:
   gua-repository:
     description: Repository containing Gua Godot plugin releases.
     required: false
-    default: link1345/gua
+    default: gua-project/gua
   gua-plugin-tag:
     description: Gua release tag. Leave empty to use the latest stable gua-v* release containing a matching addon asset.
     required: false
