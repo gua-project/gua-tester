@@ -1,5 +1,8 @@
 # Gua Tester Actions
 
+> [!IMPORTANT]
+> **From 2026-10-01, all users must update gua-tester to v3.2** because Gua has moved to `gua-project/gua` (and this action repository to `gua-project/gua-tester`). Update every action and reusable workflow reference to `gua-project/gua-tester/...@v3.2` as shown below. **v3.2 is planned and is not published yet**; the examples below apply once the maintainer publishes it. This requirement is for **gua-tester**, not the Gua library version.
+
 English | [日本語](README.ja.md)
 
 GitHub Actions building blocks for running Gua UI tests in Godot 4.7 and
@@ -14,7 +17,7 @@ consumer repositories.
 The Godot action:
 
 - Downloads the official Godot build matching the Windows x64, Linux x64, or macOS runner
-- Downloads the latest stable `gua-v*` release containing a matching Godot addon asset from `link1345/gua`
+- Downloads the latest stable `gua-v*` release containing a matching Godot addon asset from `gua-project/gua`
 - Extracts the released `addons/gua` package, including the matching desktop GDExtension
 - Copies the released addon into the consumer project's `game/addons/gua`
 - Sets `GODOT_EXECUTABLE` and runs `dotnet test`
@@ -44,7 +47,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Run Godot Gua tests
-        uses: link1345/gua-tester/godot@v3.1
+        uses: gua-project/gua-tester/godot@v3.2
         with:
           project-path: game
           test-project: tests/GuaTester.Tests.csproj
@@ -54,7 +57,7 @@ jobs:
           # gua-plugin-tag: gua-v1.0.7
 ```
 
-Pin production workflows to `@v3.1`. The root action was removed in v2; see the
+Pin production workflows to `@v3.2`. The root action was removed in v2; see the
 [v2 migration](#v2-migration) section.
 
 ## Godot Action Inputs
@@ -68,7 +71,7 @@ Pin production workflows to `@v3.1`. The root action was removed in v2; see the
 - `godot-status`: For example, `stable`, `rc1`, or `dev1`
 - `godot-executable-suffix`: Legacy Windows-only override. Linux and macOS use their official archive names automatically
 - `dotnet-version`: Default: `10.0.x`
-- `gua-repository`: Default: `link1345/gua`
+- `gua-repository`: Default: `gua-project/gua`
 - `gua-plugin-tag`: Specific Gua release tag, such as `gua-v1.0.7`. By
   default, the latest stable `gua-v*` release containing a matching addon asset
   is used. Legacy `godot-plugin-*` releases remain as a fallback.
@@ -83,7 +86,7 @@ You can also use the smaller actions separately.
 ### setup-godot
 
 ```yaml
-- uses: link1345/gua-tester/setup-godot@v3.1
+- uses: gua-project/gua-tester/setup-godot@v3.2
   with:
     godot-version: "4.7"
     godot-status: stable
@@ -94,14 +97,14 @@ This sets the `GODOT_EXECUTABLE` environment variable.
 ### link-gua-gdscript-addon
 
 ```yaml
-- uses: link1345/gua-tester/link-gua-gdscript-addon@v3.1
+- uses: gua-project/gua-tester/link-gua-gdscript-addon@v3.2
   with:
     project-path: game
     # Optional. Leave unset to use the latest stable gua-v* release.
     # gua-plugin-tag: gua-v1.0.7
 ```
 
-This downloads the released `link1345/gua` Godot plugin asset and copies its
+This downloads the released `gua-project/gua` Godot plugin asset and copies its
 `addons/gua` directory to `game/addons/gua`.
 
 ## Unity 6 desktop Mono
@@ -121,7 +124,7 @@ on:
 jobs:
   unity:
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
-    uses: link1345/gua-tester/.github/workflows/unity.yml@v3.1
+    uses: gua-project/gua-tester/.github/workflows/unity.yml@v3.2
     with:
       project-path: game
       scene-path: Assets/Scenes/Title.unity
@@ -146,7 +149,7 @@ Linux and macOS platform values.
 
 Required inputs are `project-path`, `scene-path`, `test-project`, and a unique
 `artifact-key` for each reusable workflow invocation. Optional
-inputs are `platform` (`WindowsX64`), `unity-version` (`auto`), `gua-repository` (`link1345/gua`),
+inputs are `platform` (`WindowsX64`), `unity-version` (`auto`), `gua-repository` (`gua-project/gua`),
 `gua-tag`, `dotnet-version` (`10.0.x`), `configuration` (`Release`),
 `test-logger` (`trx;LogFileName=unity.trx`), and `artifact-path`
 (`artifacts/gua`). `checkout-repository` and `checkout-ref` are advanced
@@ -178,7 +181,7 @@ not install Astro, Node.js, or npm dependencies.
 ```yaml
 - name: Run Godot Gua tests
   id: gua-tests
-  uses: link1345/gua-tester/godot@v3.1
+  uses: gua-project/gua-tester/godot@v3.2
   with:
     project-path: game
     test-project: tests/GuaTester.Tests.csproj
@@ -186,7 +189,7 @@ not install Astro, Node.js, or npm dependencies.
 - name: Prepare latest main visual report
   id: visual-report
   if: always() && github.event_name != 'pull_request'
-  uses: link1345/gua-tester/visual-report@v3.1
+  uses: gua-project/gua-tester/visual-report@v3.2
   with:
     artifact-path: artifacts/gua
     test-outcome: ${{ steps.gua-tests.outcome }}
@@ -228,10 +231,10 @@ presented as current.
 
 Git submodules work at repository granularity, so they cannot directly link only
 the subdirectory
-`https://github.com/link1345/gua/tree/main/examples/godot-gdscript/addons/gua`.
+`https://github.com/gua-project/gua/tree/main/examples/godot-gdscript/addons/gua`.
 
 For that reason, these actions download the matching Godot addon asset from a
-`gua-v*` release in `link1345/gua` and copy only the released `addons/gua`
+`gua-v*` release in `gua-project/gua` and copy only the released `addons/gua`
 directory into the consumer Godot project. Legacy `godot-plugin-*` releases are
 supported as a fallback. The release asset already includes the built Windows
 GDExtension DLLs, so the consumer workflow does not build the addon from source.

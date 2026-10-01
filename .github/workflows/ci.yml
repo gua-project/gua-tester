@@ -7,6 +7,27 @@ on:
       - main
 
 jobs:
+  release-integration-smoke:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test migrated release installers (latest stable)
+        shell: pwsh
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: ./tests/release-integration-smoke.ps1
+      - name: Test migrated release installers (explicit tag)
+        shell: pwsh
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: ./tests/release-integration-smoke.ps1 -GuaTag gua-v1.0.10
+
   action-contract-smoke:
     runs-on: windows-latest
     steps:

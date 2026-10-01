@@ -29,6 +29,9 @@ Assert-True (!$linkAddonAction.Contains('bin/gua_runtime.dll')) "The link-addon 
 $unityWorkflowPath = Join-Path $root ".github/workflows/unity.yml"
 Assert-True (Test-Path -LiteralPath $unityWorkflowPath -PathType Leaf) "The Unity reusable workflow is missing."
 $unityWorkflow = Get-Content -LiteralPath $unityWorkflowPath -Raw
+foreach ($definition in @($godotAction, $linkAddonAction, $unityWorkflow)) {
+    Assert-True ($definition.Contains("default: gua-project/gua")) "Release installers must default to the transferred Gua repository."
+}
 foreach ($required in @(
     "workflow_call:",
     "artifact-key:",
@@ -62,8 +65,9 @@ Assert-True (!$testUpload.Contains('${{ inputs.artifact-path }}')) "Unity artifa
 
 foreach ($readme in @("README.md", "README.ja.md")) {
     $content = Get-Content -LiteralPath (Join-Path $root $readme) -Raw
-    Assert-True ($content.Contains("link1345/gua-tester/godot@v3.1")) "$readme does not document the v3.1 Godot action."
-    Assert-True ($content.Contains("link1345/gua-tester/.github/workflows/unity.yml@v3.1")) "$readme does not document the v3.1 Unity reusable workflow."
+    Assert-True ($content.IndexOf('2026-10-01') -lt $content.IndexOf('## Godot')) "$readme must prominently document the migration date."
+    Assert-True ($content.Contains("gua-project/gua-tester/godot@v3.2")) "$readme does not document the v3.2 Godot action."
+    Assert-True ($content.Contains("gua-project/gua-tester/.github/workflows/unity.yml@v3.2")) "$readme does not document the v3.2 Unity reusable workflow."
     Assert-True ($content.Contains('artifact-key: game')) "$readme does not document the required artifact-key."
     Assert-True ($content.Contains('UNITY_SERIAL: ${{ secrets.UNITY_SERIAL }}')) "$readme does not map UNITY_SERIAL."
 }

@@ -20,7 +20,7 @@ jobs:
 
       - name: Run Godot Gua tests
         id: gua-tests
-        uses: link1345/gua-tester/godot@v3.1
+        uses: gua-project/gua-tester/godot@v3.2
         with:
           project-path: game
           test-project: tests/GuaTester.Tests.csproj
@@ -31,7 +31,7 @@ jobs:
 
       - name: Upload pull-request visual failures
         if: failure() && github.event_name == 'pull_request'
-        uses: link1345/gua-tester/visual-report@v3.1
+        uses: gua-project/gua-tester/visual-report@v3.2
         with:
           artifact-path: artifacts/gua
           test-outcome: ${{ steps.gua-tests.outcome }}
@@ -41,7 +41,7 @@ jobs:
       - name: Prepare latest main visual report
         id: pages-report
         if: always() && github.event_name != 'pull_request'
-        uses: link1345/gua-tester/visual-report@v3.1
+        uses: gua-project/gua-tester/visual-report@v3.2
         with:
           artifact-path: artifacts/gua
           test-outcome: ${{ steps.gua-tests.outcome }}

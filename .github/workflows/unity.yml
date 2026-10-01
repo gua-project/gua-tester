@@ -32,7 +32,7 @@ on:
       gua-repository:
         description: Repository containing Gua Unity UPM release assets.
         required: false
-        default: link1345/gua
+        default: gua-project/gua
         type: string
       gua-tag:
         description: Gua release tag. Empty selects the latest stable gua-v* release with a Unity UPM asset.
