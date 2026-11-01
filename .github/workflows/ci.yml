@@ -27,6 +27,11 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: ./tests/release-integration-smoke.ps1 -GuaTag gua-v1.2.0
+      - name: Test legacy release installer compatibility
+        shell: pwsh
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: ./tests/release-integration-smoke.ps1 -GuaTag gua-v1.0.10
 
   godot-v120-smoke:
     strategy:
@@ -54,7 +59,9 @@ jobs:
       - uses: actions/checkout@v4
       - name: Test public action contracts
         shell: pwsh
-        run: ./tests/action-contract-smoke.ps1
+        run: |
+          ./tests/action-contract-smoke.ps1
+          ./tests/source-identity-smoke.ps1
 
   visual-report-smoke:
     runs-on: windows-latest

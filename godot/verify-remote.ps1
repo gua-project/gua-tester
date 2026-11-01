@@ -46,7 +46,7 @@ func _probe() -> void:
         return
     var expected_source = OS.get_environment("GUA_TESTER_EXPECTED_SOURCE")
     if expected_source != "" and info.get("sourceCommit") != expected_source:
-        push_error("Gua tester: the loaded native extension does not match the selected release source commit.")
+        push_error("Gua tester: the loaded native extension does not match the expected native source commit.")
         quit(1)
         return
     print("GUA_TESTER_BUILD_INFO=" + JSON.stringify(info))

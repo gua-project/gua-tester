@@ -37,7 +37,9 @@ remote code to a precompiled library. See the [Gua build guide](https://gua.oriz
 The all-in-one Godot action reads the actually loaded native build-info before
 running tests. An addon without remote capability fails with an explanation,
 rather than waiting for a connection timeout. The source commit must match the
-selected v1.2.0+ release tag. A Player-limited addon remains Player-limited; this
+expected native source. By default this is resolved from the release tag; an asset
+mirror can supply the original upstream SHA through `gua-source-commit`. This
+optional input never disables capability, source, or hash checks. A Player-limited addon remains Player-limited; this
 action does not elevate its profile. Test only information and operations exposed
 by the host. For Gua versions before 1.2.0, legacy installation is retained, but
 missing build-info is explicitly reported as unverified.
@@ -116,6 +118,7 @@ Pin production workflows to `@v3.2`. The root action was removed in v2; see the
 - `godot-status`: For example, `stable`, `rc1`, or `dev1`
 - `godot-executable-suffix`: Legacy Windows-only override. Linux and macOS use their official archive names automatically
 - `dotnet-version`: Default: `10.0.x`
+- `gua-source-commit`: Optional expected native source SHA (40 lowercase hex); empty resolves the release tag. For mirrored assets, specify the original Gua source commit.
 - `gua-repository`: Default: `gua-project/gua`
 - `gua-plugin-tag`: Specific Gua release tag, such as `gua-v1.2.0`. By
   default, the latest stable `gua-v*` release containing a matching addon asset

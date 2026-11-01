@@ -6,6 +6,10 @@ inputs:
     description: Repository containing Gua Godot plugin releases.
     required: false
     default: gua-project/gua
+  gua-source-commit:
+    description: Expected native Gua source SHA (40 lowercase hex). Empty resolves the release tag; asset mirrors may supply the original upstream commit.
+    required: false
+    default: ""
   gua-plugin-tag:
     description: Gua release tag. Leave empty to use the latest stable gua-v* release containing a matching addon asset.
     required: false
@@ -24,7 +28,7 @@ outputs:
     description: Exact resolved Gua release tag (pin this alongside the test SDK).
     value: ${{ steps.link-gua-addon.outputs.gua-tag }}
   gua-source-commit:
-    description: Source commit resolved from the v1.2.0+ release tag.
+    description: Expected native source commit (tag-derived or explicitly supplied).
     value: ${{ steps.link-gua-addon.outputs.gua-source-commit }}
   gua-asset-sha256:
     description: SHA256 of the downloaded addon archive, checked against the release digest when provided.
@@ -41,6 +45,7 @@ runs:
       shell: pwsh
       env:
         GITHUB_TOKEN: ${{ github.token }}
+        GUA_EXPECTED_SOURCE_COMMIT: ${{ inputs.gua-source-commit }}
       run: |
         $ErrorActionPreference = "Stop"
         $repository = "${{ inputs.gua-repository }}"
@@ -91,14 +96,21 @@ runs:
           $release = Invoke-RestMethod -Uri "https://api.github.com/repos/${repository}/releases/tags/${tag}" -Headers $headers
         }
 
-        $reference = Invoke-RestMethod -Uri "https://api.github.com/repos/${repository}/git/ref/tags/$([uri]::EscapeDataString($release.tag_name))" -Headers $headers
-        $object = $reference.object
-        for ($depth = 0; $object.type -eq 'tag' -and $depth -lt 5; $depth++) {
-          $reference = Invoke-RestMethod -Uri "https://api.github.com/repos/${repository}/git/tags/$($object.sha)" -Headers $headers
+        # Resolve native source commit (a distribution repository may mirror upstream assets).
+        $sourceCommit = $env:GUA_EXPECTED_SOURCE_COMMIT
+        if ([string]::IsNullOrWhiteSpace($sourceCommit)) {
+          $reference = Invoke-RestMethod -Uri "https://api.github.com/repos/${repository}/git/ref/tags/$([uri]::EscapeDataString($release.tag_name))" -Headers $headers
           $object = $reference.object
+          for ($depth = 0; $object.type -eq 'tag' -and $depth -lt 5; $depth++) {
+            $reference = Invoke-RestMethod -Uri "https://api.github.com/repos/${repository}/git/tags/$($object.sha)" -Headers $headers
+            $object = $reference.object
+          }
+          if ($object.type -ne 'commit' -or $object.sha -notmatch '^[0-9a-f]{40}$') { throw 'Could not resolve the Gua release tag to a source commit.' }
+          $sourceCommit = $object.sha
+        } elseif ($sourceCommit -cnotmatch '^[0-9a-f]{40}$') {
+          throw 'gua-source-commit must be a full 40-character lowercase hexadecimal source SHA.'
         }
-        if ($object.type -ne 'commit' -or $object.sha -notmatch '^[0-9a-f]{40}$') { throw 'Could not resolve the Gua release tag to a source commit.' }
-        $sourceCommit = $object.sha
+        # End native source commit resolution.
         $asset = Find-AddonAsset $release
         if ($null -eq $asset) {
           $patternsText = $assetPatterns -join "', '"

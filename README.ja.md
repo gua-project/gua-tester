@@ -36,7 +36,9 @@ native をソースからビルドする際は、用途に合う `GUA_DISTRIBUTI
 
 Godot の一括 Action は、実際に読み込んだ native の build-info をテスト前に確認します。
 遠隔機能がなければ、接続タイムアウトを待たずに理由を示して停止します。
-v1.2.0 以降ではソースのコミット SHA も、選択したリリースタグと照合します。
+v1.2.0 以降では native のソース SHA も照合します。既定はリリースタグから解決します。
+配布ファイルを別リポジトリへミラーする場合は、`gua-source-commit` に元の Gua ソースの
+40桁の SHA（小文字の16進数）を指定できます。この入力で能力・ソース・ハッシュ検査を省略することはありません。
 Player の公開範囲は、ホストがプレイヤー向けに許可した情報と操作だけです。
 この Action が Debug 権限へ昇格させることはありません。
 v1.2.0 より前の導入も維持しますが、build-info がない場合は事前検証できていない旨を表示します。
@@ -95,8 +97,8 @@ jobs:
           test-project: tests/GuaTester.Tests.csproj
           godot-version: "4.7"
           godot-status: stable
-          # 省略時は最新安定版の gua-v* リリースを使います。
-          # gua-plugin-tag: gua-v1.2.0
+          # テスト SDK と同じ版に固定します。
+          gua-plugin-tag: gua-v1.2.0
 ```
 
 本番workflowは`@v3.2`へ固定してください。v2ではroot Actionを削除しています。
@@ -141,8 +143,8 @@ jobs:
 - uses: gua-project/gua-tester/link-gua-gdscript-addon@v3.2
   with:
     project-path: game
-    # 省略時は最新安定版の gua-v* リリースを使います。
-    # gua-plugin-tag: gua-v1.2.0
+    # テスト SDK と同じ版に固定します。
+    gua-plugin-tag: gua-v1.2.0
 ```
 
 `gua-project/gua` の Godot plugin リリース asset をダウンロードし、その中の

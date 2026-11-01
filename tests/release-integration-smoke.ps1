@@ -4,7 +4,7 @@ $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
 $testRoot = Join-Path ([IO.Path]::GetTempPath()) ("gua-release-smoke-" + [Guid]::NewGuid().ToString("N"))
 $savedEnvironment = @{}
-foreach ($name in @("RUNNER_TEMP", "RUNNER_OS", "RUNNER_ARCH", "GUA_REPOSITORY", "GUA_TAG", "PROJECT_PATH", "GUA_TEST_VARIANT")) {
+foreach ($name in @("RUNNER_TEMP", "RUNNER_OS", "RUNNER_ARCH", "GUA_REPOSITORY", "GUA_TAG", "PROJECT_PATH", "GUA_TEST_VARIANT", "GUA_EXPECTED_SOURCE_COMMIT")) {
     $savedEnvironment[$name] = [Environment]::GetEnvironmentVariable($name)
 }
 
@@ -18,6 +18,7 @@ try {
     $env:GUA_REPOSITORY = "gua-project/gua"
     $env:GUA_TAG = $GuaTag
     $env:GUA_TEST_VARIANT = "development"
+    $env:GUA_EXPECTED_SOURCE_COMMIT = ""
     Push-Location $testRoot
     foreach ($step in @(
         @{ file = "godot/action.yml"; name = "Download and link Gua addon"; project = "godot" },

@@ -34,6 +34,11 @@ on:
         required: false
         default: gua-project/gua
         type: string
+      gua-source-commit:
+        description: Expected native Gua source SHA (40 lowercase hex). Empty resolves the release tag; asset mirrors may supply the original upstream commit.
+        required: false
+        default: ""
+        type: string
       gua-tag:
         description: Gua release tag. Empty selects the latest stable gua-v* release with a Unity UPM asset.
         required: false
@@ -186,6 +191,7 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
           GUA_REPOSITORY: ${{ inputs.gua-repository }}
           GUA_TAG: ${{ inputs.gua-tag }}
+          GUA_EXPECTED_SOURCE_COMMIT: ${{ inputs.gua-source-commit }}
           PROJECT_PATH: ${{ inputs.project-path }}
           GUA_TEST_VARIANT: ${{ inputs.gua-build-variant }}
         run: |
@@ -209,14 +215,21 @@ jobs:
             $release = Invoke-RestMethod -Uri "https://api.github.com/repos/$($env:GUA_REPOSITORY)/releases/tags/$($env:GUA_TAG)" -Headers $headers
           }
 
-          $reference = Invoke-RestMethod -Uri "https://api.github.com/repos/$($env:GUA_REPOSITORY)/git/ref/tags/$([uri]::EscapeDataString($release.tag_name))" -Headers $headers
-          $object = $reference.object
-          for ($depth = 0; $object.type -eq 'tag' -and $depth -lt 5; $depth++) {
-            $reference = Invoke-RestMethod -Uri "https://api.github.com/repos/$($env:GUA_REPOSITORY)/git/tags/$($object.sha)" -Headers $headers
+          # Resolve native source commit (a distribution repository may mirror upstream assets).
+          $sourceCommit = $env:GUA_EXPECTED_SOURCE_COMMIT
+          if ([string]::IsNullOrWhiteSpace($sourceCommit)) {
+            $reference = Invoke-RestMethod -Uri "https://api.github.com/repos/$($env:GUA_REPOSITORY)/git/ref/tags/$([uri]::EscapeDataString($release.tag_name))" -Headers $headers
             $object = $reference.object
+            for ($depth = 0; $object.type -eq 'tag' -and $depth -lt 5; $depth++) {
+              $reference = Invoke-RestMethod -Uri "https://api.github.com/repos/$($env:GUA_REPOSITORY)/git/tags/$($object.sha)" -Headers $headers
+              $object = $reference.object
+            }
+            if ($object.type -ne 'commit' -or $object.sha -notmatch '^[0-9a-f]{40}$') { throw 'Could not resolve the Gua release tag to a source commit.' }
+            $sourceCommit = $object.sha
+          } elseif ($sourceCommit -cnotmatch '^[0-9a-f]{40}$') {
+            throw 'gua-source-commit must be a full 40-character lowercase hexadecimal source SHA.'
           }
-          if ($object.type -ne 'commit' -or $object.sha -notmatch '^[0-9a-f]{40}$') { throw 'Could not resolve the Gua release tag to a source commit.' }
-          $sourceCommit = $object.sha
+          # End native source commit resolution.
           $assets = @($release.assets | Where-Object { $_.name -like $assetPattern })
           if ($assets.Count -ne 1) {
             throw "Expected exactly one '$assetPattern' asset in release '$($release.tag_name)', found $($assets.Count)."
