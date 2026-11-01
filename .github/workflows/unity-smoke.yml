@@ -24,13 +24,14 @@ jobs:
     uses: ./.github/workflows/unity.yml
     with:
       checkout-repository: gua-project/gua
-      checkout-ref: gua-v1.0.7
+      checkout-ref: 2e12fb3cfdf822418f349515027d6f620c5ee63b # gua-v1.2.0
       project-path: examples/unity-smoke
       scene-path: Assets/Scenes/GuaUnityFixture.unity
       test-project: bindings/dotnet/tests/Gua.Unity.Integration.Tests/Gua.Unity.Integration.Tests.csproj
       artifact-key: unity-smoke
       unity-version: 6000.5.3f1
-      gua-tag: gua-v1.0.7
+      gua-tag: gua-v1.2.0
+      gua-build-variant: development
       artifact-path: artifacts/gua
     secrets:
       UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}

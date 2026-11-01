@@ -26,7 +26,27 @@ jobs:
         shell: pwsh
         env:
           GITHUB_TOKEN: ${{ github.token }}
-        run: ./tests/release-integration-smoke.ps1 -GuaTag gua-v1.0.10
+        run: ./tests/release-integration-smoke.ps1 -GuaTag gua-v1.2.0
+
+  godot-v120-smoke:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test v1.2.0 package through the consumer action
+        uses: ./godot
+        with:
+          project-path: tests/fixtures/godot
+          test-project: tests/fixtures/GodotRemote.Tests/GodotRemote.Tests.csproj
+          gua-plugin-tag: gua-v1.2.0
+      - name: Test remote preflight failure messages
+        shell: pwsh
+        run: ./tests/remote-preflight-smoke.ps1
 
   action-contract-smoke:
     runs-on: windows-latest

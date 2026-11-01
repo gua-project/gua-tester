@@ -39,6 +39,11 @@ on:
         required: false
         default: ""
         type: string
+      gua-build-variant:
+        description: Remote test purpose (development, qa, or ai-player); must match the compiled package. Ordinary shipping builds cannot be remotely tested.
+        required: false
+        default: development
+        type: string
       dotnet-version:
         description: .NET SDK used by the external test runner.
         required: false
@@ -119,6 +124,7 @@ jobs:
           UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
           UNITY_SERIAL: ${{ secrets.UNITY_SERIAL }}
           GUA_PLATFORM: ${{ inputs.platform }}
+          GUA_TEST_VARIANT: ${{ inputs.gua-build-variant }}
         run: |
           $ErrorActionPreference = "Stop"
           if ([string]::IsNullOrWhiteSpace($env:UNITY_EMAIL) -or [string]::IsNullOrWhiteSpace($env:UNITY_PASSWORD)) {
@@ -129,6 +135,9 @@ jobs:
           }
           if ($env:ARTIFACT_KEY -notmatch '^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$') {
             throw "artifact-key must contain 1-64 letters, digits, dots, underscores, or hyphens, and must begin with a letter or digit."
+          }
+          if ($env:GUA_TEST_VARIANT -notin @('development', 'qa', 'ai-player')) {
+            throw "gua-build-variant must be development, qa, or ai-player. Ordinary shipping builds contain no remote implementation; use a matching remote-enabled package for interactive tests."
           }
           $platforms = @{
             WindowsX64 = @{ target = "StandaloneWindows64"; output = "/github/workspace/artifacts/unity-player/GuaPlayer.exe" }
@@ -178,6 +187,7 @@ jobs:
           GUA_REPOSITORY: ${{ inputs.gua-repository }}
           GUA_TAG: ${{ inputs.gua-tag }}
           PROJECT_PATH: ${{ inputs.project-path }}
+          GUA_TEST_VARIANT: ${{ inputs.gua-build-variant }}
         run: |
           $ErrorActionPreference = "Stop"
           $headers = @{ "User-Agent" = "gua-tester-unity" }
@@ -199,20 +209,33 @@ jobs:
             $release = Invoke-RestMethod -Uri "https://api.github.com/repos/$($env:GUA_REPOSITORY)/releases/tags/$($env:GUA_TAG)" -Headers $headers
           }
 
+          $reference = Invoke-RestMethod -Uri "https://api.github.com/repos/$($env:GUA_REPOSITORY)/git/ref/tags/$([uri]::EscapeDataString($release.tag_name))" -Headers $headers
+          $object = $reference.object
+          for ($depth = 0; $object.type -eq 'tag' -and $depth -lt 5; $depth++) {
+            $reference = Invoke-RestMethod -Uri "https://api.github.com/repos/$($env:GUA_REPOSITORY)/git/tags/$($object.sha)" -Headers $headers
+            $object = $reference.object
+          }
+          if ($object.type -ne 'commit' -or $object.sha -notmatch '^[0-9a-f]{40}$') { throw 'Could not resolve the Gua release tag to a source commit.' }
+          $sourceCommit = $object.sha
           $assets = @($release.assets | Where-Object { $_.name -like $assetPattern })
           if ($assets.Count -ne 1) {
             throw "Expected exactly one '$assetPattern' asset in release '$($release.tag_name)', found $($assets.Count)."
           }
 
           $download = Join-Path $env:RUNNER_TEMP $assets[0].name
-          $extract = Join-Path $env:RUNNER_TEMP "gua-unity-package-$($release.tag_name)"
+          $extract = Join-Path $env:RUNNER_TEMP ("gua-unity-package-" + [guid]::NewGuid().ToString("N"))
           Invoke-WebRequest -Uri $assets[0].browser_download_url -OutFile $download -Headers $headers
+          $archiveHash = (Get-FileHash -LiteralPath $download -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($assets[0].digest -and $assets[0].digest -ne "sha256:$archiveHash") { throw "Gua Unity archive digest mismatch." }
+          Write-Host "Gua Unity release=$($release.tag_name) asset=$($assets[0].name) sha256=$archiveHash"
           New-Item -ItemType Directory -Force $extract | Out-Null
           tar -xzf $download -C $extract
           if ($LASTEXITCODE -ne 0) { throw "Failed to extract '$download'." }
 
           $source = Join-Path $extract "package"
           $project = (Resolve-Path -LiteralPath $env:PROJECT_PATH).Path
+          $workspace = [IO.Path]::GetFullPath((Get-Location).Path)
+          if ($project -ne $workspace -and !$project.StartsWith($workspace + [IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase)) { throw 'Unity project must remain inside the working directory.' }
           $packages = Join-Path $project "Packages"
           $target = Join-Path $packages "com.link1345.gua"
           $manifestPath = Join-Path $packages "manifest.json"
@@ -251,6 +274,45 @@ jobs:
           if ($release.tag_name -like "gua-v*" -and $package.version -ne $expectedVersion) {
             throw "Unity package version '$($package.version)' does not match release '$($release.tag_name)'."
           }
+          # v1.2.0+ packages carry native identity/hash records. Unity's prebuild guard
+          # additionally probes the actual native and managed capabilities during the build.
+          $legacyPackage = $package.version -match '^(\d+)\.(\d+)\.(\d+)' -and [version]"$($Matches[1]).$($Matches[2]).$($Matches[3])" -lt [version]'1.2.0'
+          if ($legacyPackage -and $env:GUA_TEST_VARIANT -ne 'development') { throw 'Testing/AI-player purposes require v1.2.0+ capability metadata; legacy packages support development tests only.' }
+          if (!$legacyPackage) {
+            $nativeDirectory = switch ("${{ inputs.platform }}") {
+              'WindowsX64' { 'Runtime/Plugins/Windows/x86_64' }
+              'LinuxX64' { 'Runtime/Plugins/Linux/x86_64' }
+              default { 'Runtime/Plugins/macOS' }
+            }
+            $nativeRoot = Join-Path $target $nativeDirectory
+            $proofPath = Join-Path $nativeRoot 'gua-build-manifest.json'
+            if (!(Test-Path -LiteralPath $proofPath -PathType Leaf)) { throw "Gua v1.2.0+ requires the native package manifest; replace the complete matching package." }
+            $proof = Get-Content -LiteralPath $proofPath -Raw | ConvertFrom-Json
+            $ceiling = if ($env:GUA_TEST_VARIANT -eq 'ai-player') { 'player' } else { 'debug' }
+            if ($proof.schemaVersion -ne 1 -or ($proof.build.remoteEnabled -isnot [bool]) -or !$proof.build.remoteEnabled -or
+                $proof.build.flavor -cne $env:GUA_TEST_VARIANT -or $proof.build.remotePermissionCeiling -cne $ceiling -or
+                $proof.build.sourceCommit -cne $sourceCommit -or !$proof.build.buildId -or
+                'websocket' -notin @($proof.build.transports)) {
+              throw "Gua native capability does not match remote test purpose '$env:GUA_TEST_VARIANT'. Ordinary shipping has no remote implementation; Player cannot be elevated to Debug."
+            }
+            $entries = @($proof.files)
+            if ($entries.Count -eq 0) { throw 'Gua native manifest contains no files.' }
+            $seen = [Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
+            foreach ($entry in $entries) {
+              if ([string]::IsNullOrWhiteSpace($entry.path) -or [IO.Path]::IsPathRooted($entry.path) -or !$seen.Add($entry.path)) { throw 'Invalid or duplicate native manifest path.' }
+              # The UPM moves licenses to its package root. The native manifest's
+              # non-native archive entries are not part of the selected plugin pair.
+              if ([IO.Path]::GetExtension($entry.path) -notin @('.dll','.so','.dylib')) { continue }
+              $file = [IO.Path]::GetFullPath((Join-Path $nativeRoot $entry.path))
+              if (!$file.StartsWith([IO.Path]::GetFullPath($nativeRoot) + [IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase) -or
+                  !(Test-Path -LiteralPath $file -PathType Leaf) -or $entry.sha256 -notmatch '^[0-9a-fA-F]{64}$' -or
+                  (Get-FileHash -LiteralPath $file -Algorithm SHA256).Hash -ine $entry.sha256) { throw 'Gua native manifest file/hash mismatch.' }
+            }
+            foreach ($file in Get-ChildItem -LiteralPath $nativeRoot -File | Where-Object Extension -in @('.dll','.so','.dylib')) {
+              if (!$seen.Contains($file.Name)) { throw "Unlisted Gua native file '$($file.Name)'; use a clean matching package." }
+            }
+            Write-Host "Gua native build-info: $($proof.build | ConvertTo-Json -Compress -Depth 10)"
+          }
           $manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
           if ($null -eq $manifest.dependencies) { throw "The Unity package manifest has no dependencies object." }
           $manifest.dependencies.PSObject.Properties.Remove("com.link1345.gua")
@@ -278,6 +340,7 @@ jobs:
             -guaScene "${{ inputs.scene-path }}"
             -guaOutput "${{ steps.build-paths.outputs.player-output }}"
             -guaPlatform "${{ inputs.platform }}"
+            -guaVariant "${{ inputs.gua-build-variant }}"
             -logFile /github/workspace/artifacts/unity-logs/unity-build.log
           allowDirtyBuild: true
 

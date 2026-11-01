@@ -26,3 +26,6 @@ Thumbs.db
 .env
 .env.*
 !.env.example
+
+tests/fixtures/godot/addons/
+tests/fixtures/godot/.userdata/

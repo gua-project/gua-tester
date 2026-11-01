@@ -1,0 +1,6 @@
+config_version=5
+[application]
+config/name="Gua Tester v1.2.0 fixture"
+run/main_scene="res://main.tscn"
+[rendering]
+renderer/rendering_method="gl_compatibility"

@@ -1,7 +1,7 @@
 # Gua Tester Actions
 
 > [!IMPORTANT]
-> **2026-10-01から、すべての利用者はgua-testerをv3.2へ更新してください。** Guaの`gua-project/gua`への移管（このActions repoも`gua-project/gua-tester`へ移管）への対応が必要です。すべてのActionとreusable workflowの参照を、以下の例のように`gua-project/gua-tester/...@v3.2`へ変更してください。**v3.2は公開予定で、まだリリースされていません。** 以下の例はメンテナーによる公開後に利用してください。更新対象は**gua-tester**であり、Guaライブラリのバージョンではありません。
+> **2026-10-01から、すべての利用者はgua-testerをv3.2へ更新してください。** Guaの`gua-project/gua`への移管（このActions repoも`gua-project/gua-tester`へ移管）への対応が必要です。すべてのActionとreusable workflowの参照を、以下の例のように`gua-project/gua-tester/...@v3.2`へ変更してください。更新対象は**gua-tester**であり、Guaライブラリのバージョンではありません。
 
 [English](README.md) | 日本語
 
@@ -11,6 +11,48 @@ GitHub Actions部品群です。
 このrepo自体はテスト対象ゲームではありません。利用者repo向けにGodotの
 composite Action、Unityのreusable workflow、engine共通のVisual report機能を
 提供します。
+
+## Gua v1.2.0：遠隔テストに使える配布物を選ぶ
+
+Gua ライブラリのバージョンと、この Actions リポジトリのリビジョンは別です。
+addon／UPM と `Gua.Testing.Godot` または `Gua.Testing.Unity` を **1.2.0** に揃えます。
+この対応を含む Actions／workflow のリビジョンも指定してください。
+Gua ライブラリだけを更新しても、古い Action タグに新しい入力や検査は追加されません。
+
+| 用途 | native の設定値 | 遠隔操作 |
+| --- | --- | --- |
+| 通常配布用（遠隔操作なし） | `shipping` | 遠隔実装を含まない |
+| 開発・エディター用 | `development` | 明示的に有効化。調査用 Debug 権限が上限 |
+| テスト用（Release 実行ファイルの検査） | `qa` | 明示的に有効化。調査用 Debug 権限が上限 |
+| AIプレイヤー対応の配布用 | `ai-player` | 明示的に有効化。Player 権限が上限で固定 |
+
+Debug／Release はコードのビルド方法で、上の用途とは別に選びます。
+公開 v1.2.0 のテスト SDK addon と UPM は、**遠隔操作を明示的に有効にした開発用**です。
+Release という名前のファイルも含みますが、遠隔操作のない通常配布用とは異なります。
+native をソースからビルドする際は、用途に合う `GUA_DISTRIBUTION_FLAVOR` と
+`GUA_ENABLE_REMOTE_AUTOMATION=ON` が必要です。ゲーム側の `#if`、環境変数、Player profile
+だけでは、既製ライブラリに含まれない遠隔コードを追加できません。
+詳しくは [Gua の用途別ビルド設定](https://gua.orizika.com/ja/remote-builds/) を参照してください。
+
+Godot の一括 Action は、実際に読み込んだ native の build-info をテスト前に確認します。
+遠隔機能がなければ、接続タイムアウトを待たずに理由を示して停止します。
+v1.2.0 以降ではソースのコミット SHA も、選択したリリースタグと照合します。
+Player の公開範囲は、ホストがプレイヤー向けに許可した情報と操作だけです。
+この Action が Debug 権限へ昇格させることはありません。
+v1.2.0 より前の導入も維持しますが、build-info がない場合は事前検証できていない旨を表示します。
+
+addon をコピーするだけの `link-gua-gdscript-addon` は Godot を起動せず、native の能力までは
+検査しません。一括 Action を使うか、ゲーム内の `get_build_info()` で確認してください。
+両方の導入経路に `gua-tag`、`gua-source-commit`（v1.2.0 以降）、`gua-asset-sha256` の出力があり、
+GitHub が配布ファイルのハッシュを提供している場合は照合します。
+
+Unity workflow の `gua-build-variant` 入力は、公開テスト SDK に合う `development` が既定です。
+`qa`／`ai-player` は、その用途でコンパイルされたパッケージを用意した場合だけ指定します。
+workflow は選択する native ファイルの検査情報（manifest）、ソース SHA、ハッシュを検査してから、
+Unity のビルドコマンドへ用途を渡します。Unity のビルド前検査でも native／managed の実際の能力を確認します。
+manifest には元の統合アーカイブのファイルが載ることがあり、各パッケージの native フォルダーに
+全コンポーネントや LICENSE が存在するという意味ではありません。
+遠隔実装を含まない通常配布用は対話テストの対象にできないため、遠隔接続できないことを別に検証してください。
 
 ## Godot 4.7
 
@@ -54,7 +96,7 @@ jobs:
           godot-version: "4.7"
           godot-status: stable
           # 省略時は最新安定版の gua-v* リリースを使います。
-          # gua-plugin-tag: gua-v1.0.7
+          # gua-plugin-tag: gua-v1.2.0
 ```
 
 本番workflowは`@v3.2`へ固定してください。v2ではroot Actionを削除しています。
@@ -71,7 +113,7 @@ jobs:
 - `godot-executable-suffix`: Windows向け後方互換override。Linux／macOSは公式archive名を自動選択
 - `dotnet-version`: 既定値 `10.0.x`
 - `gua-repository`: 既定値 `gua-project/gua`
-- `gua-plugin-tag`: `gua-v1.0.7` などの特定の Gua リリースタグ。省略時は
+- `gua-plugin-tag`: `gua-v1.2.0` などの特定の Gua リリースタグ。省略時は
   対象 addon asset を含む最新安定版の `gua-v*` リリースを使います。旧形式の
   `godot-plugin-*` リリースにもフォールバックします。
 - `gua-plugin-asset-pattern`: 既定値 `gua-godot-addon-*.zip`。既定設定では、古いGuaタグのWindowsアドオン名も後方互換として受け付けます。
@@ -100,7 +142,7 @@ jobs:
   with:
     project-path: game
     # 省略時は最新安定版の gua-v* リリースを使います。
-    # gua-plugin-tag: gua-v1.0.7
+    # gua-plugin-tag: gua-v1.2.0
 ```
 
 `gua-project/gua` の Godot plugin リリース asset をダウンロードし、その中の
@@ -131,7 +173,7 @@ jobs:
       artifact-key: game
       platform: LinuxX64
       unity-version: auto
-      gua-tag: gua-v1.0.7
+      gua-tag: gua-v1.2.0
     secrets:
       UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
       UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
@@ -242,7 +284,7 @@ Godot project へコピーします。旧形式の `godot-plugin-*` リリース
 ```xml
 <Project Sdk="Microsoft.NET.Sdk">
   <ItemGroup>
-    <PackageReference Include="Gua.Testing.Godot" Version="1.0.7" />
+    <PackageReference Include="Gua.Testing.Godot" Version="1.2.0" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
     <PackageReference Include="NUnit" Version="4.3.2" />
     <PackageReference Include="NUnit3TestAdapter" Version="4.6.0" />
