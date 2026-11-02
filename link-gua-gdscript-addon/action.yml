@@ -6,6 +6,10 @@ inputs:
     description: Repository containing Gua Godot plugin releases.
     required: false
     default: gua-project/gua
+  gua-source-commit:
+    description: Expected native Gua source SHA (40 lowercase hex). Empty resolves the release tag; asset mirrors may supply the original upstream commit.
+    required: false
+    default: ""
   gua-plugin-tag:
     description: Gua release tag. Leave empty to use the latest stable gua-v* release containing a matching addon asset.
     required: false
@@ -20,6 +24,15 @@ inputs:
     default: game
 
 outputs:
+  gua-tag:
+    description: Exact resolved Gua release tag (pin this alongside the test SDK).
+    value: ${{ steps.link-gua-addon.outputs.gua-tag }}
+  gua-source-commit:
+    description: Expected native source commit (tag-derived or explicitly supplied).
+    value: ${{ steps.link-gua-addon.outputs.gua-source-commit }}
+  gua-asset-sha256:
+    description: SHA256 of the downloaded addon archive, checked against the release digest when provided.
+    value: ${{ steps.link-gua-addon.outputs.gua-asset-sha256 }}
   addon-path:
     description: Path where the addon was copied inside the Godot project.
     value: ${{ inputs.project-path }}/addons/gua
@@ -28,9 +41,11 @@ runs:
   using: composite
   steps:
     - name: Download and copy addon into Godot project
+      id: link-gua-addon
       shell: pwsh
       env:
         GITHUB_TOKEN: ${{ github.token }}
+        GUA_EXPECTED_SOURCE_COMMIT: ${{ inputs.gua-source-commit }}
       run: |
         $ErrorActionPreference = "Stop"
         $repository = "${{ inputs.gua-repository }}"
@@ -81,17 +96,42 @@ runs:
           $release = Invoke-RestMethod -Uri "https://api.github.com/repos/${repository}/releases/tags/${tag}" -Headers $headers
         }
 
+        # Resolve native source commit (a distribution repository may mirror upstream assets).
+        $sourceCommit = $env:GUA_EXPECTED_SOURCE_COMMIT
+        if ([string]::IsNullOrWhiteSpace($sourceCommit)) {
+          $reference = Invoke-RestMethod -Uri "https://api.github.com/repos/${repository}/git/ref/tags/$([uri]::EscapeDataString($release.tag_name))" -Headers $headers
+          $object = $reference.object
+          for ($depth = 0; $object.type -eq 'tag' -and $depth -lt 5; $depth++) {
+            $reference = Invoke-RestMethod -Uri "https://api.github.com/repos/${repository}/git/tags/$($object.sha)" -Headers $headers
+            $object = $reference.object
+          }
+          if ($object.type -ne 'commit' -or $object.sha -notmatch '^[0-9a-f]{40}$') { throw 'Could not resolve the Gua release tag to a source commit.' }
+          $sourceCommit = $object.sha
+        } elseif ($sourceCommit -cnotmatch '^[0-9a-f]{40}$') {
+          throw 'gua-source-commit must be a full 40-character lowercase hexadecimal source SHA.'
+        }
+        # End native source commit resolution.
         $asset = Find-AddonAsset $release
         if ($null -eq $asset) {
           $patternsText = $assetPatterns -join "', '"
           throw "No release asset matching one of '${patternsText}' was found in release '$($release.tag_name)'."
         }
 
-        $downloadDir = Join-Path $env:RUNNER_TEMP "gua-godot-addon-$($release.tag_name)"
+        $downloadDir = Join-Path $env:RUNNER_TEMP ("gua-godot-addon-" + [guid]::NewGuid().ToString("N"))
         $archivePath = Join-Path $downloadDir $asset.name
         $extractDir = Join-Path $downloadDir "extract"
         New-Item -ItemType Directory -Force $downloadDir | Out-Null
         Invoke-WebRequest -Uri $asset.browser_download_url -OutFile $archivePath -Headers $downloadHeaders
+        $archiveHash = (Get-FileHash -LiteralPath $archivePath -Algorithm SHA256).Hash.ToLowerInvariant()
+        if ($asset.digest -and $asset.digest -ne "sha256:$archiveHash") {
+          throw "Gua addon archive digest does not match the release asset."
+        }
+        Write-Host "Gua addon release=$($release.tag_name) asset=$($asset.name) sha256=$archiveHash"
+        if ($env:GITHUB_OUTPUT) {
+          "gua-source-commit=$sourceCommit" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          "gua-tag=$($release.tag_name)" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          "gua-asset-sha256=$archiveHash" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+        }
         Expand-Archive -Path $archivePath -DestinationPath $extractDir -Force
 
         $sourceAddon = Join-Path $extractDir "addons/gua"
@@ -109,7 +149,12 @@ runs:
           throw "The release asset '$($asset.name)' is missing '$extensionName'."
         }
 
-        $addonParent = Join-Path "${{ inputs.project-path }}" "addons"
+        $workspace = [IO.Path]::GetFullPath((Get-Location).Path)
+        $project = [IO.Path]::GetFullPath("${{ inputs.project-path }}", $workspace)
+        if ($project -ne $workspace -and !$project.StartsWith($workspace + [IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase)) {
+          throw "project-path must remain inside the working directory."
+        }
+        $addonParent = Join-Path $project "addons"
         $targetAddon = Join-Path $addonParent "gua"
         New-Item -ItemType Directory -Force $addonParent | Out-Null
         if (Test-Path -LiteralPath $targetAddon) {

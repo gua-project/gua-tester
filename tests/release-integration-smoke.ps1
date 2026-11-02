@@ -4,31 +4,11 @@ $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
 $testRoot = Join-Path ([IO.Path]::GetTempPath()) ("gua-release-smoke-" + [Guid]::NewGuid().ToString("N"))
 $savedEnvironment = @{}
-foreach ($name in @("RUNNER_TEMP", "RUNNER_OS", "RUNNER_ARCH", "GUA_REPOSITORY", "GUA_TAG", "PROJECT_PATH")) {
+foreach ($name in @("RUNNER_TEMP", "RUNNER_OS", "RUNNER_ARCH", "GUA_REPOSITORY", "GUA_TAG", "PROJECT_PATH", "GUA_TEST_VARIANT", "GUA_EXPECTED_SOURCE_COMMIT")) {
     $savedEnvironment[$name] = [Environment]::GetEnvironmentVariable($name)
 }
 
-# Execute the production inline scripts, rather than reimplementing release resolution.
-function Get-StepScript([string]$File, [string]$Step) {
-    $lines = Get-Content -LiteralPath (Join-Path $root $File)
-    $start = -1
-    for ($i = 0; $i -lt $lines.Count; $i++) {
-        if ($lines[$i].Trim() -eq "- name: $Step") { $start = $i; break }
-    }
-    if ($start -lt 0) { throw "Step '$Step' was not found in '$File'." }
-    for ($i = $start + 1; $i -lt $lines.Count; $i++) {
-        if ($lines[$i] -match '^(\s*)run: \|\s*$') {
-            $indent = $Matches[1].Length + 2
-            $body = @()
-            for ($j = $i + 1; $j -lt $lines.Count; $j++) {
-                if ($lines[$j].Trim() -and [regex]::Match($lines[$j], '^\s*').Length -lt $indent) { break }
-                $body += if ($lines[$j].Length -ge $indent) { $lines[$j].Substring($indent) } else { "" }
-            }
-            return $body -join "`n"
-        }
-    }
-    throw "Inline script was not found for '$Step'."
-}
+. (Join-Path $PSScriptRoot "action-step.ps1")
 
 try {
     New-Item -ItemType Directory -Path $testRoot | Out-Null
@@ -37,6 +17,8 @@ try {
     if (!$env:RUNNER_ARCH) { $env:RUNNER_ARCH = [Runtime.InteropServices.RuntimeInformation]::OSArchitecture.ToString().ToUpperInvariant() }
     $env:GUA_REPOSITORY = "gua-project/gua"
     $env:GUA_TAG = $GuaTag
+    $env:GUA_TEST_VARIANT = "development"
+    $env:GUA_EXPECTED_SOURCE_COMMIT = ""
     Push-Location $testRoot
     foreach ($step in @(
         @{ file = "godot/action.yml"; name = "Download and link Gua addon"; project = "godot" },
@@ -63,6 +45,9 @@ try {
         throw "Embedded-package installation did not preserve unrelated dependencies."
     }
     Write-Host "Verified Unity release resolution, extraction, managed/native plugins, package version and manifest migration."
+    if ($GuaTag -eq 'gua-v1.2.0') {
+        & (Join-Path $PSScriptRoot 'native-manifest-smoke.ps1') -PackagePath (Resolve-Path 'unity/Packages/com.link1345.gua').Path -Platform $platform
+    }
 } finally {
     if ((Get-Location).Path -eq $testRoot) { Pop-Location }
     foreach ($name in $savedEnvironment.Keys) { [Environment]::SetEnvironmentVariable($name, $savedEnvironment[$name]) }

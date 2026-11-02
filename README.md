@@ -1,7 +1,7 @@
 # Gua Tester Actions
 
 > [!IMPORTANT]
-> **From 2026-10-01, all users must update gua-tester to v3.2** because Gua has moved to `gua-project/gua` (and this action repository to `gua-project/gua-tester`). Update every action and reusable workflow reference to `gua-project/gua-tester/...@v3.2` as shown below. **v3.2 is planned and is not published yet**; the examples below apply once the maintainer publishes it. This requirement is for **gua-tester**, not the Gua library version.
+> **From 2026-10-01, all users must update gua-tester to v3.2** because Gua has moved to `gua-project/gua` (and this action repository to `gua-project/gua-tester`). Update every action and reusable workflow reference to `gua-project/gua-tester/...@v3.2` as shown below. This requirement is for **gua-tester**, not the Gua library version.
 
 English | [日本語](README.ja.md)
 
@@ -11,6 +11,53 @@ Unity 6 projects.
 This repository is not a sample game repository. It provides a Godot composite
 action, a Unity reusable workflow, and engine-neutral visual report tooling for
 consumer repositories.
+
+## Gua v1.2.0: choose a package that supports remote tests
+
+Gua's library version and this Actions repository's revision are separate.
+Pin the addon/UPM and `Gua.Testing.Godot` or `Gua.Testing.Unity` to **1.2.0** together.
+Pin an action/workflow revision containing this integration too: selecting a new
+Gua library does not add new checks or inputs to an older action tag.
+
+| Purpose | Native setting value | Remote access |
+| --- | --- | --- |
+| Ordinary user-facing release, without remote control | `shipping` | No remote implementation |
+| Development / Editor testing | `development` | Explicitly enabled; Debug inspection ceiling |
+| Testing a Release executable | `qa` | Explicitly enabled; Debug inspection ceiling |
+| AI-player-enabled user-facing release | `ai-player` | Explicitly enabled; fixed Player ceiling |
+
+Debug/Release describes how code is built; the purpose above is a separate choice.
+The public v1.2.0 test SDK addon and UPM are **development builds with remote access
+explicitly enabled**, including the binaries named Release. They are not ordinary
+release packages without remote control. Native source builds require
+`GUA_ENABLE_REMOTE_AUTOMATION=ON` with the appropriate `GUA_DISTRIBUTION_FLAVOR`.
+Changing a game-side `#if`, environment variable, or Player profile cannot add
+remote code to a precompiled library. See the [Gua build guide](https://gua.orizika.com/remote-builds/).
+
+The all-in-one Godot action reads the actually loaded native build-info before
+running tests. An addon without remote capability fails with an explanation,
+rather than waiting for a connection timeout. The source commit must match the
+expected native source. By default this is resolved from the release tag; an asset
+mirror can supply the original upstream SHA through `gua-source-commit`. This
+optional input never disables capability, source, or hash checks. A Player-limited addon remains Player-limited; this
+action does not elevate its profile. Test only information and operations exposed
+by the host. For Gua versions before 1.2.0, legacy installation is retained, but
+missing build-info is explicitly reported as unverified.
+
+The link-only action does not launch Godot or verify the loaded native capability.
+Use the all-in-one action for that check, or inspect `get_build_info()` in the game.
+Both installers expose `gua-tag`, `gua-source-commit` (v1.2.0+), and
+`gua-asset-sha256`; archive digests are checked when provided by GitHub.
+
+The Unity workflow's `gua-build-variant` input defaults to `development`, matching
+the public test SDK. Choose `qa` or `ai-player` only with a package compiled for
+that purpose. The workflow checks the selected native files against their
+inspection records (manifest), source commit, and hashes, then passes the purpose
+to Unity's build command. Unity's prebuild guard additionally checks the actual
+native and managed capabilities. A manifest may describe files from the original
+combined archive; it does not mean every component or license must exist in each
+package's native directory. No remote test can operate an ordinary `shipping`
+build; test the absence of remote access separately.
 
 ## Godot 4.7
 
@@ -53,8 +100,8 @@ jobs:
           test-project: tests/GuaTester.Tests.csproj
           godot-version: "4.7"
           godot-status: stable
-          # Optional. Leave unset to use the latest stable gua-v* release.
-          # gua-plugin-tag: gua-v1.0.7
+          # Pin the addon to the test SDK version for reproducible tests.
+          gua-plugin-tag: gua-v1.2.0
 ```
 
 Pin production workflows to `@v3.2`. The root action was removed in v2; see the
@@ -71,8 +118,9 @@ Pin production workflows to `@v3.2`. The root action was removed in v2; see the
 - `godot-status`: For example, `stable`, `rc1`, or `dev1`
 - `godot-executable-suffix`: Legacy Windows-only override. Linux and macOS use their official archive names automatically
 - `dotnet-version`: Default: `10.0.x`
+- `gua-source-commit`: Optional expected native source SHA (40 lowercase hex); empty resolves the release tag. For mirrored assets, specify the original Gua source commit.
 - `gua-repository`: Default: `gua-project/gua`
-- `gua-plugin-tag`: Specific Gua release tag, such as `gua-v1.0.7`. By
+- `gua-plugin-tag`: Specific Gua release tag, such as `gua-v1.2.0`. By
   default, the latest stable `gua-v*` release containing a matching addon asset
   is used. Legacy `godot-plugin-*` releases remain as a fallback.
 - `gua-plugin-asset-pattern`: Default: `gua-godot-addon-*.zip`. The default also accepts the legacy Windows addon name for older Gua tags.
@@ -100,8 +148,8 @@ This sets the `GODOT_EXECUTABLE` environment variable.
 - uses: gua-project/gua-tester/link-gua-gdscript-addon@v3.2
   with:
     project-path: game
-    # Optional. Leave unset to use the latest stable gua-v* release.
-    # gua-plugin-tag: gua-v1.0.7
+    # Pin the addon to the test SDK version.
+    gua-plugin-tag: gua-v1.2.0
 ```
 
 This downloads the released `gua-project/gua` Godot plugin asset and copies its
@@ -132,7 +180,7 @@ jobs:
       artifact-key: game
       platform: LinuxX64
       unity-version: auto
-      gua-tag: gua-v1.0.7
+      gua-tag: gua-v1.2.0
     secrets:
       UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
       UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
@@ -150,7 +198,7 @@ Linux and macOS platform values.
 Required inputs are `project-path`, `scene-path`, `test-project`, and a unique
 `artifact-key` for each reusable workflow invocation. Optional
 inputs are `platform` (`WindowsX64`), `unity-version` (`auto`), `gua-repository` (`gua-project/gua`),
-`gua-tag`, `dotnet-version` (`10.0.x`), `configuration` (`Release`),
+`gua-tag`, `gua-build-variant` (`development`; also `qa` or `ai-player` with matching packages), `dotnet-version` (`10.0.x`), `configuration` (`Release`),
 `test-logger` (`trx;LogFileName=unity.trx`), and `artifact-path`
 (`artifacts/gua`). `checkout-repository` and `checkout-ref` are advanced
 overrides used when the project and tests come from another repository.
@@ -250,7 +298,7 @@ Example test project:
 ```xml
 <Project Sdk="Microsoft.NET.Sdk">
   <ItemGroup>
-    <PackageReference Include="Gua.Testing.Godot" Version="1.0.7" />
+    <PackageReference Include="Gua.Testing.Godot" Version="1.2.0" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
     <PackageReference Include="NUnit" Version="4.3.2" />
     <PackageReference Include="NUnit3TestAdapter" Version="4.6.0" />

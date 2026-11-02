@@ -26,8 +26,8 @@ jobs:
           test-project: tests/GuaTester.Tests.csproj
           godot-version: "4.7"
           godot-status: stable
-          # Optional. Leave unset to use the latest stable gua-v* release.
-          # gua-plugin-tag: gua-v1.0.7
+          # Pin the addon to the test SDK version for reproducible tests.
+          gua-plugin-tag: gua-v1.2.0
 
       - name: Upload pull-request visual failures
         if: failure() && github.event_name == 'pull_request'
